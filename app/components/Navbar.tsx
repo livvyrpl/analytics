@@ -5,29 +5,45 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '../../src/lib/supabase';
 
+// List of authorized admin email addresses
+const ADMIN_EMAILS = [
+  'olivia.stinson0@gmail.com', // Replace or add your admin emails here
+  // 'another-admin@gmail.com'
+];
+
 export default function Navbar() {
   const supabase = createClient();
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     async function getUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email) {
-        // Extract the username part from the email for a clean greeting
-        const name = user.email.split('@')[0];
-        setUserEmail(name);
+        setUserEmail(user.email);
+        // Check if user email is in the admin list
+        if (ADMIN_EMAILS.includes(user.email)) {
+          setIsAdmin(true);
+        }
       }
     }
     getUser();
   }, [supabase]);
 
+  // Base navigation links visible to everyone logged in
   const navLinks = [
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Match Library', href: '/match-library' },
     { name: 'Teams', href: '/teams' },
-    { name: 'Admin', href: '/admin' }, // Added Admin tab here
   ];
+
+  // Conditionally add Admin link if the user is verified
+  if (isAdmin) {
+    navLinks.push({ name: 'Admin', href: '/admin' });
+  }
+
+  const cleanName = userEmail ? userEmail.split('@')[0] : '';
 
   return (
     <nav className="bg-[#121620] border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl">
@@ -57,9 +73,9 @@ export default function Navbar() {
         })}
 
         {/* Welcome User text next to Add Match */}
-        {userEmail && (
+        {cleanName && (
           <span className="text-xs text-zinc-400 hidden xl:inline">
-            Welcome, <strong className="text-white capitalize">{userEmail}</strong>
+            Welcome, <strong className="text-white capitalize">{cleanName}</strong>
           </span>
         )}
 

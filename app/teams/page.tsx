@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Navbar from '@/app/components/Navbar';
-import { supabase } from '@/src/lib/supabase';
+import { createClient } from '../../src/lib/supabase';
 
 type Match = Record<string, any>;
 type Round = {
@@ -123,6 +123,9 @@ function MatrixTable({ title, columns, rows }: { title: string; columns: string[
 }
 
 export default function TeamsPage() {
+  // Initialize Supabase client inside the component
+  const supabase = createClient();
+
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedTeam, setSelectedTeam] = useState('');
   const [profile, setProfile] = useState<TeamProfile>(DEFAULT_PROFILE);
@@ -143,7 +146,7 @@ export default function TeamsPage() {
       setLoading(false);
     }
     loadMatches();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (!selectedTeam) return;
@@ -345,7 +348,7 @@ export default function TeamsPage() {
           {['Attack', 'Defense'].map(side => { const matrix = stats.matrixFor(stats.played, side); return <MatrixTable key={side} title={`Top 10 Operators Played - ${side} By Map`} columns={matrix.names} rows={matrix.rows} />; })}
           {['Attack', 'Defense'].map(side => { const matrix = stats.bannedMatrixFor(side); return <MatrixTable key={side} title={`Top 10 Operators Banned - ${side} By Map`} columns={matrix.names} rows={matrix.rows} />; })}
           <section className="space-y-2"><div className="flex items-center justify-between gap-3"><h2 className="text-xs font-black uppercase text-white">Top Operators By Site, Map, And Side</h2><select value={selectedSiteMap} onChange={event => setSelectedSiteMap(event.target.value)} className="bg-[#121620] border border-zinc-700 rounded px-2 py-1 text-xs text-white"><option value="ALL">All maps</option>{ANALYTICS_MAPS.map(map => <option key={map} value={map}>{map}</option>)}</select></div><MatrixTable title="Site Operator Breakdown" columns={['Site / Side', ...stats.siteMaps]} rows={stats.siteMatrixRows} /></section>
-        </>}
+        </> }
       </div>
     </main>
   );

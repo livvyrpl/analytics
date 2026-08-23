@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '@/src/lib/supabase';
+import { createClient } from '../../src/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -11,9 +11,13 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Initialize the Supabase client here so it uses the active environment variables
+  const supabase = createClient();
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
 
     try {
       if (isSignUp) {

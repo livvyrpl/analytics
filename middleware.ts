@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
           });
@@ -27,8 +27,20 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Important: Refresh expired Auth tokens
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  const url = request.nextUrl.clone();
+
+  // If user is not logged in and trying to access anything other than /login
+  if (!user && url.pathname !== '/login') {
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  // If user is logged in and trying to go to /login, push them to the dashboard/home
+  if (user && url.pathname === '/login') {
+    url.pathname = '/'; // Change this to your main dashboard path if it's different
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }
@@ -36,12 +48,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - login (your login route)
+     * Match all request paths except for static files and images
      */
-    '/((?!_next/static|_next/image|favicon.ico|login|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

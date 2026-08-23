@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/src/lib/supabase';
+import { createClient } from '../../src/lib/supabase';
 import Navbar from '@/app/components/Navbar';
 import { useRouter } from 'next/navigation';
 
@@ -89,6 +89,7 @@ type ParsedMatch = {
 };
 
 export default function AddMatchPage() {
+  const supabase = createClient();
   const router = useRouter();
   
   const [existingTeams, setExistingTeams] = useState<string[]>([]);
@@ -174,7 +175,7 @@ export default function AddMatchPage() {
       }
     }
     fetchTeams();
-  }, []);
+  }, [supabase]);
 
   const handleFormatChange = (format: 'BO1' | 'BO3') => {
     setMatchFormat(format);
@@ -187,7 +188,6 @@ export default function AddMatchPage() {
     }
   };
 
-  // Fully Updated Folder Upload Handler mapping Backend JSON
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
     if (!rawFiles || rawFiles.length === 0) return;
@@ -200,7 +200,6 @@ export default function AddMatchPage() {
       const fileName = file.name.toLowerCase();
 
       if (fileName.endsWith('.rec')) {
-        // Read the round from the recording name, not a parent folder name such as "r6-analyst".
         const matchRoundNum = fileName.match(/(?:^|[-_])(?:round[-_ ]?)?r[-_ ]?(\d+)\.rec$/)
           || fileName.match(/(?:^|[-_])round[-_ ]?(\d+)\.rec$/);
         
@@ -222,8 +221,8 @@ export default function AddMatchPage() {
                 const matchData = result.output as ParsedMatch;
                 const teams = Array.isArray(matchData.teams) ? matchData.teams : [];
                 const players = Array.isArray(matchData.players) ? matchData.players : [];
-                const team1 = teams[0];
-                const team2 = teams[1];
+                const team1Obj = teams[0];
+                const team2Obj = teams[1];
                 const team1Operators = players
                   .filter(player => player.teamIndex === 0)
                   .map(player => player.operator?.name)
@@ -239,11 +238,11 @@ export default function AddMatchPage() {
                   round_number: roundNum,
                   map_name: parsedMapName || currentMap,
                   site: matchData.site || '',
-                  team_1_side: team1?.role || (roundNum % 2 !== 0 ? 'Attack' : 'Defense'),
+                  team_1_side: team1Obj?.role || (roundNum % 2 !== 0 ? 'Attack' : 'Defense'),
                   team_1_operators: team1Operators,
-                  team_2_side: team2?.role || (roundNum % 2 !== 0 ? 'Defense' : 'Attack'),
+                  team_2_side: team2Obj?.role || (roundNum % 2 !== 0 ? 'Defense' : 'Attack'),
                   team_2_operators: team2Operators,
-                  winner: team1?.won ? 'Team 1' : team2?.won ? 'Team 2' : 'Team 1',
+                  winner: team1Obj?.won ? 'Team 1' : team2Obj?.won ? 'Team 2' : 'Team 1',
                 });
                 continue;
               }
@@ -672,118 +671,64 @@ export default function AddMatchPage() {
 
             <div className="space-y-4 pt-4 border-t border-zinc-800">
               <div className="flex justify-between items-center">
-                <h3 className="text-xs font-black uppercase tracking-wider text-[#ff79c6]">Rounds & Splits Breakdown</h3>
-                <button type="button" onClick={addRoundRow} className="px-3 py-1.5 bg-[#ff79c6] text-black font-bold text-xs rounded-lg hover:opacity-90">
+                <h3 className="text-xs font-black uppercase tracking-wider text-[#ff79c6]">Round Breakdowns ({rounds.length} Rounds)</h3>
+                <button type="button" onClick={addRoundRow} className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-xs font-bold">
                   ＋ Add Round
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {rounds.map((round, index) => {
-                  const availableSites = MAP_SITES[round.map_name] || ['Default Site'];
-                  return (
-                    <div key={index} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-white uppercase bg-zinc-800 px-2.5 py-1 rounded">
-                          Round {round.round_number}
-                        </span>
-                        {rounds.length > 1 && (
-                          <button type="button" onClick={() => removeRoundRow(index)} className="text-xs text-red-400 hover:underline font-bold">
-                            Remove Round
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Map</label>
-                          <select value={round.map_name} onChange={(e) => handleRoundChange(index, 'map_name', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-white">
-                            {!MAP_POOL.includes(round.map_name) && <option value={round.map_name}>{round.map_name} (Parsed)</option>}
-                            {matchFormat === 'BO3' && team1MapPick && <option value={team1MapPick}>{team1MapPick} (Team 1 Pick)</option>}
-                            {matchFormat === 'BO3' && team2MapPick && <option value={team2MapPick}>{team2MapPick} (Team 2 Pick)</option>}
-                            {deciderMap && <option value={deciderMap}>{deciderMap} (Decider)</option>}
-                            {MAP_POOL.map(m => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Site Location</label>
-                          <select value={round.site} onChange={(e) => handleRoundChange(index, 'site', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-white" required>
-                            <option value="">Select Site...</option>
-                            {round.site && !availableSites.includes(round.site) && <option value={round.site}>{round.site} (Parsed)</option>}
-                            {availableSites.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">Round Winner</label>
-                          <select value={round.winner} onChange={(e) => handleRoundChange(index, 'winner', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs text-white">
-                            <option value="Team 1">{team1 || 'Team 1'} Wins</option>
-                            <option value="Team 2">{team2 || 'Team 2'} Wins</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                        <div className="bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-[#ff79c6]">{team1 || 'Team 1'} Setup</span>
-                            <select value={round.team_1_side} onChange={(e) => handleRoundChange(index, 'team_1_side', e.target.value)} className="bg-zinc-900 border border-zinc-800 text-[10px] text-white rounded px-2 py-1">
-                              <option value="Attack">Attack</option>
-                              <option value="Defense">Defense</option>
-                            </select>
-                          </div>
-                          <p className="text-[10px] text-zinc-400">Select Operators (Max 5):</p>
-                          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-zinc-900 rounded border border-zinc-800">
-                            {Array.from(new Set([
-                              ...(round.team_1_side === 'Attack' ? ATTACKERS : DEFENDERS),
-                              ...round.team_1_operators,
-                            ])).map(op => {
-                              const isSelected = round.team_1_operators.includes(op);
-                              return (
-                                <button key={`t1-${op}`} type="button" onClick={() => handleOperatorToggle(index, 'team_1', op)} className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors ${isSelected ? 'bg-[#ff79c6] text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>
-                                  {op}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-bold text-cyan-400">{team2 || 'Team 2'} Setup</span>
-                            <select value={round.team_2_side} onChange={(e) => handleRoundChange(index, 'team_2_side', e.target.value)} className="bg-zinc-900 border border-zinc-800 text-[10px] text-white rounded px-2 py-1">
-                              <option value="Attack">Attack</option>
-                              <option value="Defense">Defense</option>
-                            </select>
-                          </div>
-                          <p className="text-[10px] text-zinc-400">Select Operators (Max 5):</p>
-                          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-zinc-900 rounded border border-zinc-800">
-                            {Array.from(new Set([
-                              ...(round.team_2_side === 'Attack' ? ATTACKERS : DEFENDERS),
-                              ...round.team_2_operators,
-                            ])).map(op => {
-                              const isSelected = round.team_2_operators.includes(op);
-                              return (
-                                <button key={`t2-${op}`} type="button" onClick={() => handleOperatorToggle(index, 'team_2', op)} className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors ${isSelected ? 'bg-cyan-400 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>
-                                  {op}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
+              <div className="space-y-3">
+                {rounds.map((round, rIndex) => (
+                  <div key={rIndex} className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-white">Round {round.round_number}</span>
+                      {rounds.length > 1 && (
+                        <button type="button" onClick={() => removeRoundRow(rIndex)} className="text-red-400 hover:text-red-300 text-xs font-bold">
+                          Remove
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Map Name</label>
+                        <select value={round.map_name} onChange={(e) => handleRoundChange(rIndex, 'map_name', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-1.5 text-xs text-white">
+                          {MAP_POOL.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Site</label>
+                        <select value={round.site} onChange={(e) => handleRoundChange(rIndex, 'site', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-1.5 text-xs text-white">
+                          <option value="">Select Site...</option>
+                          {(MAP_SITES[round.map_name] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">{team1 || 'Team 1'} Side</label>
+                        <select value={round.team_1_side} onChange={(e) => handleRoundChange(rIndex, 'team_1_side', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-1.5 text-xs text-white">
+                          <option value="Attack">Attack</option>
+                          <option value="Defense">Defense</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Round Winner</label>
+                        <select value={round.winner} onChange={(e) => handleRoundChange(rIndex, 'winner', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-1.5 text-xs text-white">
+                          <option value="Team 1">{team1 || 'Team 1'}</option>
+                          <option value="Team 2">{team2 || 'Team 2'}</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="pt-4 border-t border-zinc-800 flex justify-end">
-              <button type="submit" className="px-6 py-3 bg-[#ff79c6] text-black font-black text-sm rounded-xl hover:opacity-90 shadow-lg">
-                Save Match to Database
-              </button>
-            </div>
-
+            <button type="submit" className="w-full py-3 bg-[#ff79c6] text-black font-bold rounded-lg text-sm hover:opacity-90 transition-opacity">
+              Save Match to Database
+            </button>
           </form>
         </div>
       </div>

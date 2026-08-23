@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/src/lib/supabase';
+import { createClient } from '../../src/lib/supabase';
 import Navbar from '@/app/components/Navbar';
 import Link from 'next/link';
 
 export default function MatchLibraryPage() {
+  // Initialize Supabase client inside the component using the factory pattern
+  const supabase = createClient();
+
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +41,7 @@ export default function MatchLibraryPage() {
 
   useEffect(() => {
     fetchMatches();
-  }, []);
+  }, [supabase]);
 
   async function fetchMatches() {
     try {
